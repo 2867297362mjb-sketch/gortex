@@ -1497,6 +1497,9 @@
                               "evidence_encode_ms": {
                                 "type": "number"
                               },
+                              "evidence_folded_repeat_calls": {
+                                "type": "integer"
+                              },
                               "evidence_limit_bytes": {
                                 "type": "integer"
                               },
