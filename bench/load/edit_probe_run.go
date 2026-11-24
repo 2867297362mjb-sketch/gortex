@@ -42,6 +42,7 @@ type editProbeReadback struct {
 type editProbeRecord struct {
 	patchWaits                  *editProbePatchWaits
 	Consumers                   map[string]editConsumerObservation `json:"relation_consumers,omitempty"`
+	ConsumerOwnACK              *bool                              `json:"consumer_own_ack,omitempty"`
 	Superseded                  *receiptproof.Superseded           `json:"superseded_receipt,omitempty"`
 	supersededStatus            *receiptproof.Status
 	coalescedStatus             *receiptproof.Coalesced
@@ -109,6 +110,7 @@ type editProbeRecord struct {
 }
 type editProbeReport struct {
 	ConsumerBaseline   *editConsumerBaseline        `json:"consumer_baseline,omitempty"`
+	ConsumerOwnership  *editConsumerOwnership       `json:"consumer_ownership,omitempty"`
 	PhysicalWriteScope *editProbePhysicalWriteScope `json:"physical_write_scope,omitempty"`
 	SharedOwners       *editProbeSharedOwnerReport  `json:"shared_owners,omitempty"`
 	SearchReadbacks    *searchReadbackAcceptance    `json:"search_readback_acceptance,omitempty"`
@@ -1099,6 +1101,12 @@ func (r *editProbeRuntime) finishEditAfterACK(ctx, callCtx context.Context, s *e
 		s.record.ACKMutationID, _ = body["mutation_id"].(string)
 		s.record.ACKCommitSeq, _ = strconvEditProbeUint(body["commit_seq"])
 		s.record.ACKContentSHA256, _ = body["content_sha256"].(string)
+		if r.plan.ConsumerProbes {
+			acknowledged := s.record
+			acknowledged.Receipt, _ = body["mutation_receipt"].(string)
+			own := editConsumerOwnedACK(step, acknowledged, body)
+			s.record.ConsumerOwnACK = &own
+		}
 		s.mu.Unlock()
 	}
 	receipt, _ := body["mutation_receipt"].(string)
@@ -1587,6 +1595,7 @@ func (r *editProbeRuntime) finish() error {
 	}
 	finishEditProbeMetrics(r.phase)
 	r.phase.EditProbe.Summary = summarizeEditProbe(r.phase.EditProbe.Records, r.plan.Seed)
+	r.phase.EditProbe.ConsumerOwnership = summarizeEditConsumerOwnership(r.plan, max(1, len(r.editors)), r.phase.EditProbe.Records)
 	if r.plan.sixRepoTopology() {
 		appendEditProbeTopologyWaits(r.phase, r.plan.Seed)
 	}
